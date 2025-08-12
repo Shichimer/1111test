@@ -1,4 +1,6 @@
-// GPT-5 Thinking — Local Standalone (Canvas + Vanilla JS, noindex v2, centered hero)
+// GPT-5 Thinking — Local Standalone (Canvas + Vanilla JS, noindex v3)
+// 変更点：グロー/残像の強化、きらめき、ヴィネット、エモ度スライダ、パレット追加
+
 (() => {
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d', { alpha: true });
@@ -11,9 +13,11 @@
   const rangeDensity = document.getElementById('density');
   const rangeSpeed = document.getElementById('speed');
   const rangeScale = document.getElementById('scale');
+  const rangeEmotion = document.getElementById('emotion');
   const densityVal = document.getElementById('densityVal');
   const speedVal = document.getElementById('speedVal');
   const scaleVal = document.getElementById('scaleVal');
+  const emotionVal = document.getElementById('emotionVal');
   const hudToggle = document.getElementById('hudToggle');
   const desc = document.getElementById('desc');
 
@@ -24,6 +28,7 @@
   let density = 1800;
   let speed = 0.9;
   let scale = 0.0016;
+  let emotion = 0.6; // 0..1
   let showHUD = true;
   let saving = false;
   let dpr = 1;
@@ -62,13 +67,14 @@
     }
   }
 
-  // Palettes
+  // Palettes（1つ追加：Ethereal）
   const palettes = [
     (t) => `hsl(${(200 + t * 80) % 360} 80% ${40 + 30 * Math.sin(t * 2 * Math.PI)}%)`, // Aurora
     (t) => `hsl(${(300 + t * 120) % 360} 95% ${60 + 30 * Math.sin(t * 6.28)}%)`,       // Neon
     (t) => `hsl(${(180 + t * 60) % 360} 70% ${45 + 20 * Math.sin(t * 3.14)}%)`,        // Ocean
     (t) => `hsl(${(20 + t * 140) % 360} 90% ${50 + 25 * Math.sin(t * 6.28)}%)`,        // Sunset
     (t) => `hsl(${(220 + t * 10) % 360} 5% ${30 + 55 * t}%)`,                           // Mono
+    (t) => `hsl(${(210 + t * 160) % 360} 90% ${55 + 35 * Math.sin(t * 6.28)}%)`,       // Ethereal
   ];
 
   function field(ix, iy, t, w, h) {
@@ -103,16 +109,16 @@
     const w = canvas.width;
     const h = canvas.height;
 
-    // trail fade
+    // trail fade（エモ度が高いほど残像を長くする）
+    const fadeAlpha = Math.max(0.06, 0.18 - 0.10 * emotion);
     ctx.save();
     ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = fadeAlpha;
     ctx.fillStyle = "#0b0b10";
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
 
     ctx.globalCompositeOperation = "lighter";
-    ctx.lineWidth = 1.2 * dpr;
     const pal = palettes[paletteIndex];
     time += 0.006;
 
@@ -134,16 +140,50 @@
       }
 
       const t = (Math.atan2(vy, vx) / (Math.PI * 2) + 1 + p.seed) % 1;
-      ctx.strokeStyle = pal(t);
-      ctx.globalAlpha = 0.06 + 0.12 * Math.abs(Math.sin(t * Math.PI * 2));
 
+      // Glow pass（太く・薄く）
+      ctx.lineWidth = (1.2 + 4.0 * emotion) * dpr;
+      ctx.strokeStyle = pal(t);
+      ctx.globalAlpha = (0.02 + 0.12 * Math.abs(Math.sin(t * Math.PI * 2))) * (0.6 + 0.8 * emotion);
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
       ctx.lineTo(nx, ny);
       ctx.stroke();
 
+      // Core pass（シャープ）
+      ctx.lineWidth = 1.2 * dpr;
+      ctx.globalAlpha = 0.06 + 0.12 * Math.abs(Math.sin(t * Math.PI * 2));
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(nx, ny);
+      ctx.stroke();
+
+      // Twinkle（きらめき）
+      if (p.seed < 0.002 * (0.5 + emotion) && Math.random() < 0.05) {
+        ctx.save();
+        ctx.globalAlpha = 0.25 * (0.5 + emotion);
+        ctx.fillStyle = "#fff";
+        const r = (1.0 + 1.5 * emotion) * dpr;
+        ctx.beginPath();
+        ctx.arc(nx, ny, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       p.px = p.x; p.py = p.y; p.x = nx; p.y = ny; p.life -= 1;
     }
+
+    // Vignette（周辺減光）
+    const inner = Math.min(w, h) * 0.25;
+    const outer = Math.max(w, h) * 0.75;
+    const g = ctx.createRadialGradient(w / 2, h / 2, inner, w / 2, h / 2, outer);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, `rgba(0,0,0,${0.25 + 0.25 * emotion})`);
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
 
     requestAnimationFrame(draw);
   }
@@ -164,11 +204,12 @@
 
   function updateButtons() {
     btnMode.textContent = `モード ${(modeIndex % 3) + 1}/3`;
-    btnPalette.textContent = `パレット ${(paletteIndex % 5) + 1}/5`;
+    btnPalette.textContent = `パレット ${(paletteIndex % palettes.length) + 1}/${palettes.length}`;
     btnPause.textContent = paused ? "再開" : "停止";
     densityVal.textContent = `${density} 粒`;
     speedVal.textContent = `×${speed.toFixed(2)}`;
     scaleVal.textContent = `${scale.toFixed(4)}`;
+    emotionVal.textContent = `${emotion.toFixed(2)}`;
     desc.style.display = showHUD ? "block" : "none";
   }
 
@@ -182,7 +223,6 @@
   window.addEventListener("touchend", onUp);
 
   window.addEventListener("click", (e) => {
-    // Avoid toggling when clicking inside HUD
     if (e.target.closest(".hud")) return;
     modeIndex++;
     updateButtons();
@@ -190,18 +230,19 @@
 
   window.addEventListener("keydown", (e) => {
     if (e.key === " ") { e.preventDefault(); paused = !paused; updateButtons(); if (!paused) requestAnimationFrame(draw); }
-    if (e.key.toLowerCase() === "p") { paletteIndex++; updateButtons(); }
+    if (e.key.toLowerCase() === "p") { paletteIndex = (paletteIndex + 1) % palettes.length; updateButtons(); }
     if (e.key.toLowerCase() === "s") { saveImage(); }
   });
 
   btnMode.addEventListener("click", () => { modeIndex++; updateButtons(); });
-  btnPalette.addEventListener("click", () => { paletteIndex++; updateButtons(); });
+  btnPalette.addEventListener("click", () => { paletteIndex = (paletteIndex + 1) % palettes.length; updateButtons(); });
   btnPause.addEventListener("click", () => { paused = !paused; updateButtons(); if (!paused) requestAnimationFrame(draw); });
   btnSave.addEventListener("click", () => saveImage());
 
   rangeDensity.addEventListener("input", () => { density = parseInt(rangeDensity.value, 10); updateButtons(); });
   rangeSpeed.addEventListener("input", () => { speed = parseFloat(rangeSpeed.value); updateButtons(); });
   rangeScale.addEventListener("input", () => { scale = parseFloat(rangeScale.value); updateButtons(); });
+  rangeEmotion.addEventListener("input", () => { emotion = parseFloat(rangeEmotion.value); updateButtons(); });
   hudToggle.addEventListener("change", () => { showHUD = hudToggle.checked; updateButtons(); });
 
   function saveImage() {

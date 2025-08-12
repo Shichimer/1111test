@@ -1,4 +1,4 @@
-/* GPT-5 Thinking — Styles (noindex版, hero 3-line center) */
+/* GPT-5 Thinking — Styles (noindex版 v3, hero 3-line center + glow tweaks) */
 :root{
   --bg: #0b0b10;
   --panel: rgba(255,255,255,0.06);
@@ -72,7 +72,7 @@ html, body{
 .hud{
   position: fixed;
   left: 16px; right: 16px; bottom: 16px;
-  max-width: 680px;
+  max-width: 760px;
   backdrop-filter: blur(8px);
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -110,8 +110,8 @@ html, body{
   gap: 12px;
   margin-top: 10px;
 }
-@media (min-width: 720px){
-  .grid{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+@media (min-width: 780px){
+  .grid{ grid-template-columns: repeat(5, minmax(0,1fr)); }
 }
 
 .control{ display:flex; flex-direction: column; gap: 6px; font-size: 12px; }
